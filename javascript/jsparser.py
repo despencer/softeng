@@ -27,6 +27,15 @@ class Operand:
     def pretty(self, rules):
         return self.raw
 
+class Operation:
+    def __init__(self, operator, left, right):
+        self.operator = operator
+        self.left = left
+        self.right = right
+
+    def pretty(self, rules):
+        return '( ' + self.left.pretty(rules) + ' ) ' + self.operator + '( ' + self.right.pretty(rules) + ' ) '
+
 class Block:
     def __init__(self):
         self.vardecl = []
@@ -61,8 +70,7 @@ class Block:
                 getattr(block, dispatch[xtype]).extend(stmt)
                 block.statements.extend(stmt)
             else:
-                print(x)
-                raise Exception('Unknown type ' + x['type'])
+                raise Exception('Unknown block statement ' + x['type'])
         return block
 
     @classmethod
@@ -74,10 +82,11 @@ class Block:
 
 
 class Function:
-    def __init__(self, name, decl):
+    def __init__(self, name, decl, body):
         self.name = name
         self.decl = decl
         self.params = []
+        self.body = body
 
     def pretty(self, rules):
         buf = 'function'
@@ -86,6 +95,7 @@ class Function:
         buf += '(' + ','.join( map(lambda x: x.pretty(rules), self.params) ) + ')'
         if not self.decl:
             buf = '(' + buf + ')'
+        buf += self.body.pretty(rules)
         return buf
 
     @classmethod
@@ -127,7 +137,7 @@ class Return:
         self.expression = expression
 
     def pretty(self, rules):
-        return 'return ' + expression.pretty(rules) + ';'
+        return 'return ' + self.expression.pretty(rules) + ';'
 
 
 class Expression:
@@ -146,7 +156,11 @@ class Expression:
         elif astnode['type'] == 'Identifier':
             checknode(astnode, 'name')
             return Operand(Operand.identifier, astnode['name'], astnode['name'])
+        elif astnode['type'] == 'BinaryExpression':
+            checknode(astnode, ['operator','left','right'])
+            return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']) )
         else:
+            print(astnode)
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
 
