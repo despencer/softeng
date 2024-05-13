@@ -44,10 +44,12 @@ class Block:
     def load(cls, astnode):
         block = Block()
         checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
-                   'EmptyStatement':[] }
+                   'EmptyStatement':[], 'ReturnStatement':'argument' }
         loads = { 'VariableDeclaration': lambda x: block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
-                   'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression() }
-        dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs' }
+                   'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression(),
+                   'ReturnStatement': lambda x: Return(Expression.load(x['argument'])) }
+        dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
+                    'ReturnStatement':'exprs' }
         for x in astnode:
             xtype = x['type']
             if xtype in checks:
@@ -59,6 +61,7 @@ class Block:
                 getattr(block, dispatch[xtype]).extend(stmt)
                 block.statements.extend(stmt)
             else:
+                print(x)
                 raise Exception('Unknown type ' + x['type'])
         return block
 
@@ -118,6 +121,14 @@ class Call:
         for a in astnode['arguments']:
             call.args.append( Expression.load(a) )
         return call
+
+class Return:
+    def __init__(self, expression):
+        self.expression = expression
+
+    def pretty(self, rules):
+        return 'return ' + expression.pretty(rules) + ';'
+
 
 class Expression:
     def pretty(self, rules):
