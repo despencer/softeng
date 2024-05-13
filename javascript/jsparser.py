@@ -43,30 +43,32 @@ class Block:
     @classmethod
     def load(cls, astnode):
         block = Block()
+        checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
+                   'EmptyStatement':[] }
+        loads = { 'VariableDeclaration': lambda x: block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
+                   'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression() }
+        dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs' }
         for x in astnode:
-            if x['type'] == 'VariableDeclaration':
-                checknode(x, ['declarations', 'kind'])
-                for vdn in x['declarations']:
-                    vd = VariableDeclaration.load(vdn, x['kind'])
-                    block.vardecl.append(vd)
-                    block.statements.append(vd)
-            elif x['type'] == 'ExpressionStatement':
-                checknode(x, 'expression')
-                ex = Expression.load(x['expression'])
-                block.exprs.append(ex)
-                block.statements.append(ex)
-            elif x['type'] == 'FunctionDeclaration':
-                fn = Function.load(x, True)
-                block.funcs.append(fn)
-                block.statements.append(fn)
-            elif x['type'] == 'EmptyStatement':
-                checknode(x, [])
-                ex = Expression()
-                block.exprs.append(ex)
-                block.statements.append(ex)
+            xtype = x['type']
+            if xtype in checks:
+                if checks[xtype] != None:
+                    checknode(x, checks[xtype])
+                stmt = loads[xtype](x)
+                if not isinstance(stmt, list):
+                    stmt = [ stmt ]
+                getattr(block, dispatch[xtype]).extend(stmt)
+                block.statements.extend(stmt)
             else:
                 raise Exception('Unknown type ' + x['type'])
         return block
+
+    @classmethod
+    def loadvardecl(cls, x):
+        vds = []
+        for vdn in x['declarations']:
+            vds.append( VariableDeclaration.load(vdn, x['kind']) )
+        return vds
+
 
 class Function:
     def __init__(self, name, decl):
@@ -91,7 +93,9 @@ class Function:
             raise Exception('Generators or expressions are not yet implemented')
         if len(astnode['defaults']) < 0:
             raise Exception('Defaults are not yet implemented')
-        func = Function(astnode['id']['name'], decl, Block.load(astnode['body']) )
+        if astnode['body']['type'] != 'BlockStatement':
+            raise Exception('Unknown function body')
+        func = Function(astnode['id']['name'], decl, Block.load(astnode['body']['body']) )
         for p in astnode['params']:
             if p['type'] != 'Identifier':
                 raise Exception('Unsupported parameter ' + p['type'])
