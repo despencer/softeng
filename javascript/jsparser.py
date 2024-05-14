@@ -33,8 +33,14 @@ class Operation:
         self.left = left
         self.right = right
 
+    def prettyoperand(self, op, rules):
+        if isinstance(op, Operand):
+            return op.pretty(rules)
+        else:
+            return '(' + op.pretty(rules) + ')'
+
     def pretty(self, rules):
-        return '( ' + self.left.pretty(rules) + ' ) ' + self.operator + '( ' + self.right.pretty(rules) + ' ) '
+        return self.prettyoperand(self.left, rules) + self.operator + self.prettyoperand(self.right, rules)
 
 class Block:
     def __init__(self):
@@ -42,11 +48,14 @@ class Block:
         self.exprs = []
         self.funcs = []
         self.statements = []
+        self.top = False
 
     def pretty(self, rules):
         buf = ''
         for s in self.statements:
             buf += s.pretty(rules) + '\n'
+        if not self.top:
+            buf = '{\n' + buf + '}\n'
         return buf
 
     @classmethod
@@ -95,6 +104,7 @@ class Function:
         buf += '(' + ','.join( map(lambda x: x.pretty(rules), self.params) ) + ')'
         if not self.decl:
             buf = '(' + buf + ')'
+        buf += '\n'
         buf += self.body.pretty(rules)
         return buf
 
@@ -191,6 +201,7 @@ class VariableDeclaration:
 class Program:
     def __init__(self, body):
         self.body = body
+        self.body.top = True
 
     def pretty(self, rules):
         return self.body.pretty(rules)
