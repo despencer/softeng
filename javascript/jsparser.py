@@ -126,14 +126,18 @@ class Function:
     @classmethod
     def load(cls, astnode, decl):
         checknode(astnode, ['id','params','defaults','body','generator','expression'])
-        checknode(astnode['id'], 'name')
+        if astnode['id'] != None:
+            checknode(astnode['id'], 'name')
+            funcname = astnode['id']['name']
+        else:
+            funcname = None
         if astnode['generator'] or astnode['expression']:
             raise Exception('Generators or expressions are not yet implemented')
         if len(astnode['defaults']) < 0:
             raise Exception('Defaults are not yet implemented')
         if astnode['body']['type'] != 'BlockStatement':
             raise Exception('Unknown function body')
-        func = Function(astnode['id']['name'], decl, Block.load(astnode['body']['body']) )
+        func = Function(funcname, decl, Block.load(astnode['body']['body']) )
         for p in astnode['params']:
             if p['type'] != 'Identifier':
                 raise Exception('Unsupported parameter ' + p['type'])
@@ -177,15 +181,21 @@ class Expression:
         elif astnode['type'] == 'CallExpression':
             return Call.load(astnode)
         elif astnode['type'] == 'FunctionExpression':
-            return Function.load(astnode, false)
+            return Function.load(astnode, False)
+        elif astnode['type'] == 'MemberExpression':
+            checknode(astnode, ['computed', 'object', 'property'])
+            return Operation('.', Expression.load(astnode['object']), Expression.load(astnode['property']) )
         elif astnode['type'] == 'Identifier':
             checknode(astnode, 'name')
             return Operand(Operand.identifier, astnode['name'], astnode['name'])
-        elif astnode['type'] == 'BinaryExpression':
+        elif astnode['type'] == 'BinaryExpression' or astnode['type'] == 'AssignmentExpression':
             checknode(astnode, ['operator','left','right'])
             return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']) )
+        elif astnode['type'] == 'ConditionalExpression':
+            checknode(astnode, ['test', 'consequent', 'alternate'])
+#            return Conditional( Expression.load(astnode['test'], 
+            return Expression()
         else:
-            print(astnode)
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
 
