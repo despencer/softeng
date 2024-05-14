@@ -4,6 +4,17 @@ import json
 import argparse
 from pyjsparser import parse
 
+class Rules:
+    def __init__(self):
+        self.indent = ''
+        self.baseindent = 4
+
+    def pushindent(self):
+        self.indent += ''.ljust(self.baseindent)
+
+    def popindent(self):
+        self.indent = self.indent[:-self.baseindent]
+
 def checknode(node, keys, nodetype = None):
     if nodetype != None and node['type'] != nodetype:
         raise Exception('Mismatched node type ' + node['type'] + ' (should be ' + nodetype + ')')
@@ -52,10 +63,14 @@ class Block:
 
     def pretty(self, rules):
         buf = ''
-        for s in self.statements:
-            buf += s.pretty(rules) + '\n'
+        indent = rules.indent
         if not self.top:
-            buf = '{\n' + buf + '}\n'
+            rules.pushindent()
+        for s in self.statements:
+            buf += rules.indent + s.pretty(rules) + '\n'
+        if not self.top:
+            buf = indent + '{\n' + buf + indent + '}\n'
+            rules.popindent()
         return buf
 
     @classmethod
