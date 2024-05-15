@@ -39,10 +39,16 @@ class Operand:
         return self.raw
 
 class Operation:
-    def __init__(self, operator, left, right):
+    general = 1
+    assignment = 2
+    dotmember = 3
+    bracketmember = 4
+
+    def __init__(self, operator, left, right, kind = general):
         self.operator = operator
         self.left = left
         self.right = right
+        self.kind = kind
 
     def prettyoperand(self, op, rules):
         if isinstance(op, Operand):
@@ -51,6 +57,12 @@ class Operation:
             return '(' + op.pretty(rules) + ')'
 
     def pretty(self, rules):
+        if self.kind == Operation.assignment:
+            return self.left.pretty(rules) + ' ' + self.operator + ' ' + self.right.pretty(rules)
+        elif self.kind == Operation.dotmember:
+            return self.left.pretty(rules) + '.' + self.right.pretty(rules)
+        elif self.kind == Operation.bracketmember:
+            return self.left.pretty(rules) + '[' + self.right.pretty(rules) + ']'
         return self.prettyoperand(self.left, rules) + self.operator + self.prettyoperand(self.right, rules)
 
 class Block:
@@ -67,7 +79,12 @@ class Block:
         if not self.top:
             rules.pushindent()
         for s in self.statements:
-            buf += rules.indent + s.pretty(rules) + '\n'
+            local = s.pretty(rules)
+            if len(local) > 0:
+                if s in self.funcs:
+                    buf += rules.indent + local
+                else:
+                    buf += rules.indent + local + ';\n'
         if not self.top:
             buf = indent + '{\n' + buf + indent + '}\n'
             rules.popindent()
@@ -116,11 +133,11 @@ class Function:
         buf = 'function'
         if self.name != None:
             buf += ' ' + self.name
-        buf += '(' + ','.join( map(lambda x: x.pretty(rules), self.params) ) + ')'
+        buf += '(' + ','.join( map(lambda x: x.pretty(rules), self.params) ) + ')\n'
+        buf += self.body.pretty(rules)
         if not self.decl:
             buf = '(' + buf + ')'
         buf += '\n'
-        buf += self.body.pretty(rules)
         return buf
 
     @classmethod
@@ -151,7 +168,7 @@ class Call:
         self.args = []
 
     def pretty(self, rules):
-        return self.callee.pretty(rules) + '(' + ','.join( map(lambda x: x.pretty(rules), self.args) ) + ');'
+        return self.callee.pretty(rules) + '(' + ','.join( map(lambda x: x.pretty(rules), self.args) ) + ')'
 
     @classmethod
     def load(cls, astnode):
@@ -166,7 +183,7 @@ class Return:
         self.expression = expression
 
     def pretty(self, rules):
-        return 'return ' + self.expression.pretty(rules) + ';'
+        return 'return ' + self.expression.pretty(rules)
 
 
 class Expression:
@@ -184,13 +201,15 @@ class Expression:
             return Function.load(astnode, False)
         elif astnode['type'] == 'MemberExpression':
             checknode(astnode, ['computed', 'object', 'property'])
-            return Operation('.', Expression.load(astnode['object']), Expression.load(astnode['property']) )
+            kind = Operation.bracketmember if astnode['computed'] else Operation.dotmember
+            return Operation('.', Expression.load(astnode['object']), Expression.load(astnode['property']), kind=kind )
         elif astnode['type'] == 'Identifier':
             checknode(astnode, 'name')
             return Operand(Operand.identifier, astnode['name'], astnode['name'])
         elif astnode['type'] == 'BinaryExpression' or astnode['type'] == 'AssignmentExpression':
             checknode(astnode, ['operator','left','right'])
-            return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']) )
+            kind = Operation.general if astnode['type'] == 'BinaryExpression' else Operation.assignment
+            return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']), kind=kind)
         elif astnode['type'] == 'ConditionalExpression':
             checknode(astnode, ['test', 'consequent', 'alternate'])
 #            return Conditional( Expression.load(astnode['test'], 
@@ -209,7 +228,6 @@ class VariableDeclaration:
         buf = self.kind + ' ' + self.id
         if self.expression != None:
             buf += ' = ' + self.expression.pretty(rules)
-        buf += ';'
         return buf
 
     @classmethod
@@ -237,7 +255,7 @@ class Program:
         return Program( Block.load(astnode['body']) )
 
 def load(jssource):
-    ast = parse(jssource);
+    ast = parse(jssource)
     if ast['type'] != 'Program':
         raise Exception('Invalid AST ' + ast['type'])
     else:
