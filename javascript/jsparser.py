@@ -50,7 +50,8 @@ class Operation:
         self.right = right
         self.kind = kind
 
-    def prettyoperand(self, op, rules):
+    @classmethod
+    def prettyoperand(cls, op, rules):
         if isinstance(op, Operand):
             return op.pretty(rules)
         else:
@@ -63,7 +64,16 @@ class Operation:
             return self.left.pretty(rules) + '.' + self.right.pretty(rules)
         elif self.kind == Operation.bracketmember:
             return self.left.pretty(rules) + '[' + self.right.pretty(rules) + ']'
-        return self.prettyoperand(self.left, rules) + self.operator + self.prettyoperand(self.right, rules)
+        return Operation.prettyoperand(self.left, rules) + self.operator + Operation.prettyoperand(self.right, rules)
+
+class Conditional:
+    def __init__(self, test, consequent, alternate):
+        self.test = test
+        self.consequent = consequent
+        self.alternate = alternate
+
+    def pretty(self, rules):
+        return '(' + self.test.pretty(rules) + ') ? ' + Operation.prettyoperand(self.consequent, rules) + ' : ' + Operation.prettyoperand(self.alternate, rules)
 
 class Block:
     def __init__(self):
@@ -212,8 +222,7 @@ class Expression:
             return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']), kind=kind)
         elif astnode['type'] == 'ConditionalExpression':
             checknode(astnode, ['test', 'consequent', 'alternate'])
-#            return Conditional( Expression.load(astnode['test'], 
-            return Expression()
+            return Conditional( Expression.load(astnode['test']), Expression.load(astnode['consequent']), Expression.load(astnode['alternate']) )
         else:
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
