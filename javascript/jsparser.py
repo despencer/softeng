@@ -9,8 +9,11 @@ class Rules:
         self.indent = ''
         self.baseindent = 4
 
+    def newindent(self):
+        return ''.ljust(self.baseindent)
+
     def pushindent(self):
-        self.indent += ''.ljust(self.baseindent)
+        self.indent += self.newindent()
 
     def popindent(self):
         self.indent = self.indent[:-self.baseindent]
@@ -43,6 +46,7 @@ class Operation:
     assignment = 2
     dotmember = 3
     bracketmember = 4
+    logical = 5
 
     def __init__(self, operator, left, right, kind = general):
         self.operator = operator
@@ -66,7 +70,15 @@ class Operation:
             return self.left.pretty(rules) + '[' + self.right.pretty(rules) + ']'
         return Operation.prettyoperand(self.left, rules) + self.operator + Operation.prettyoperand(self.right, rules)
 
-class Conditional:
+class Modifier:
+    def __init__(self, operator, argument):
+        self.operator = operator
+        self.argument = argument
+
+    def pretty(self, rules):
+        return self.operator + ' ' + Operation.prettyoperand(self.argument, rules)
+
+class ConditionalExpression:
     def __init__(self, test, consequent, alternate):
         self.test = test
         self.consequent = consequent
@@ -74,6 +86,20 @@ class Conditional:
 
     def pretty(self, rules):
         return '(' + self.test.pretty(rules) + ') ? ' + Operation.prettyoperand(self.consequent, rules) + ' : ' + Operation.prettyoperand(self.alternate, rules)
+
+class ConditionalStatement:
+    def __init__(self, test, consequent, alternate):
+        self.test = test
+        self.consequent = consequent
+        self.alternate = alternate
+
+    def pretty(self, rules):
+        buf = 'if (' + self.test.pretty(rules) + ')\n'
+        buf += rules.newindent() + self.consequent.pretty(rules) + ';\n'
+        if self.alternate != None:
+            buf += 'else\n'
+            buf += rules.newindent() + self.alternate.pretty(rules) + ';\n'
+        return buf
 
 class Block:
     def __init__(self):
@@ -100,29 +126,37 @@ class Block:
             rules.popindent()
         return buf
 
+    checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
+               'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
+               'BlockStatement':'body' }
+    loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
+              'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression(),
+              'ReturnStatement': lambda x: Return(Expression.load(x['argument'])), 'IfStatement':lambda x: Block.loadconditional(x),
+              'BlockStatement': lambda x: Block.load(x['body']) }
+
     @classmethod
     def load(cls, astnode):
         block = Block()
-        checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
-                   'EmptyStatement':[], 'ReturnStatement':'argument' }
-        loads = { 'VariableDeclaration': lambda x: block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
-                   'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression(),
-                   'ReturnStatement': lambda x: Return(Expression.load(x['argument'])) }
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
-                    'ReturnStatement':'exprs' }
+                    'ReturnStatement':'exprs',  'IfStatement':'exprs', 'BlockStatement': 'exprs'}
         for x in astnode:
             xtype = x['type']
-            if xtype in checks:
-                if checks[xtype] != None:
-                    checknode(x, checks[xtype])
-                stmt = loads[xtype](x)
-                if not isinstance(stmt, list):
-                    stmt = [ stmt ]
-                getattr(block, dispatch[xtype]).extend(stmt)
-                block.statements.extend(stmt)
-            else:
-                raise Exception('Unknown block statement ' + x['type'])
+            stmt = cls.loadstatement(x)
+            if not isinstance(stmt, list):
+                stmt = [ stmt ]
+            getattr(block, dispatch[x['type']]).extend(stmt)
+            block.statements.extend(stmt)
         return block
+
+    @classmethod
+    def loadstatement(cls, x):
+        xtype = x['type']
+        if xtype in cls.checks:
+            if cls.checks[xtype] != None:
+                checknode(x, cls.checks[xtype])
+        else:
+            raise Exception('Unknown block statement ' + x['type'])
+        return cls.loads[xtype](x)
 
     @classmethod
     def loadvardecl(cls, x):
@@ -131,6 +165,10 @@ class Block:
             vds.append( VariableDeclaration.load(vdn, x['kind']) )
         return vds
 
+    @classmethod
+    def loadconditional(cls, x):
+        return ConditionalStatement( Expression.load(x['test']), Block.loadstatement(x['consequent']),
+                                     None if x['alternate'] == None else Block.loadstatement(x['alternate']) )
 
 class Function:
     def __init__(self, name, decl, body):
@@ -200,6 +238,8 @@ class Expression:
     def pretty(self, rules):
         return ''
 
+    binary = { 'BinaryExpression':Operation.general, 'AssignmentExpression':Operation.assignment, 'LogicalExpression':Operation.logical }
+
     @classmethod
     def load(cls, astnode):
         if astnode['type'] == 'Literal':
@@ -216,13 +256,17 @@ class Expression:
         elif astnode['type'] == 'Identifier':
             checknode(astnode, 'name')
             return Operand(Operand.identifier, astnode['name'], astnode['name'])
-        elif astnode['type'] == 'BinaryExpression' or astnode['type'] == 'AssignmentExpression':
+        elif astnode['type'] in cls.binary:
             checknode(astnode, ['operator','left','right'])
-            kind = Operation.general if astnode['type'] == 'BinaryExpression' else Operation.assignment
-            return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']), kind=kind)
+            return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']), kind=cls.binary[astnode['type']] )
         elif astnode['type'] == 'ConditionalExpression':
             checknode(astnode, ['test', 'consequent', 'alternate'])
-            return Conditional( Expression.load(astnode['test']), Expression.load(astnode['consequent']), Expression.load(astnode['alternate']) )
+            return ConditionalExpression( Expression.load(astnode['test']), Expression.load(astnode['consequent']), Expression.load(astnode['alternate']) )
+        elif astnode['type'] == 'UnaryExpression':
+            checknode(astnode, ['operator', 'argument', 'prefix'])
+            if astnode['prefix'] != True:
+                raise Exception('Prefix is not True for UnaryExpression')
+            return Modifier( astnode['operator'], Expression.load(astnode['argument']) )
         else:
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
