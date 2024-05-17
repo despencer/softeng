@@ -9,4 +9,6 @@ function toType( obj ) {
 		typeof obj;
 
   if (obj==null) return 5;
+
+  throw new Error('Abcd');
 }

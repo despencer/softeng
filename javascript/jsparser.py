@@ -214,17 +214,24 @@ class Function:
         return func
 
 class Call:
-    def __init__(self, callee):
+    call = 1
+    new = 2
+
+    def __init__(self, callee, kind):
+        self.kind = kind
         self.callee = callee
         self.args = []
 
     def pretty(self, rules):
-        return self.callee.pretty(rules) + '(' + ' ,'.join( map(lambda x: x.pretty(rules), self.args) ) + ')'
+        buf = ''
+        if self.kind == Call.new:
+            buf += 'new '
+        return buf + self.callee.pretty(rules) + '(' + ' ,'.join( map(lambda x: x.pretty(rules), self.args) ) + ')'
 
     @classmethod
-    def load(cls, astnode):
+    def load(cls, astnode, kind):
         checknode(astnode, ['callee','arguments'] )
-        call = Call(Expression.load(astnode['callee']))
+        call = Call(Expression.load(astnode['callee']), kind)
         for a in astnode['arguments']:
             call.args.append( Expression.load(a) )
         return call
@@ -246,14 +253,15 @@ class Expression:
         return ''
 
     binary = { 'BinaryExpression':Operation.general, 'AssignmentExpression':Operation.assignment, 'LogicalExpression':Operation.logical }
+    call = { 'CallExpression':Call.call, 'NewExpression':Call.new }
 
     @classmethod
     def load(cls, astnode):
         if astnode['type'] == 'Literal':
             checknode(astnode, ['value','raw'])
             return Operand(Operand.literal, astnode['value'], astnode['raw'])
-        elif astnode['type'] == 'CallExpression':
-            return Call.load(astnode)
+        elif astnode['type'] in cls.call:
+            return Call.load(astnode, cls.call[astnode['type']])
         elif astnode['type'] == 'FunctionExpression':
             return Function.load(astnode, False)
         elif astnode['type'] == 'MemberExpression':
