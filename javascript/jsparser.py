@@ -8,6 +8,7 @@ class Rules:
     def __init__(self):
         self.indent = ''
         self.baseindent = 4
+        self.reqsm = [ Operation, Modifier, ConditionalExpression, Call, Return, Expression, VariableDeclaration ]
 
     def newindent(self):
         return ''.ljust(self.baseindent)
@@ -17,6 +18,11 @@ class Rules:
 
     def popindent(self):
         self.indent = self.indent[:-self.baseindent]
+
+    def endmark(self, stmt):
+        if stmt.__class__ in self.reqsm:
+            return ';\n'
+        return ''
 
 def checknode(node, keys, nodetype = None):
     if nodetype != None and node['type'] != nodetype:
@@ -68,7 +74,7 @@ class Operation:
             return self.left.pretty(rules) + '.' + self.right.pretty(rules)
         elif self.kind == Operation.bracketmember:
             return self.left.pretty(rules) + '[' + self.right.pretty(rules) + ']'
-        return Operation.prettyoperand(self.left, rules) + self.operator + Operation.prettyoperand(self.right, rules)
+        return Operation.prettyoperand(self.left, rules) + ' ' + self.operator + ' ' + Operation.prettyoperand(self.right, rules)
 
 class Modifier:
     def __init__(self, operator, argument):
@@ -94,11 +100,11 @@ class ConditionalStatement:
         self.alternate = alternate
 
     def pretty(self, rules):
-        buf = 'if (' + self.test.pretty(rules) + ')\n'
-        buf += rules.newindent() + self.consequent.pretty(rules) + ';\n'
+        buf = 'if ( ' + self.test.pretty(rules) + ' )\n'
+        buf += rules.newindent() + self.consequent.pretty(rules) + rules.endmark(self.consequent)
         if self.alternate != None:
             buf += 'else\n'
-            buf += rules.newindent() + self.alternate.pretty(rules) + ';\n'
+            buf += rules.newindent() + self.alternate.pretty(rules) + rules.endmark(self.alternate)
         return buf
 
 class Block:
@@ -117,12 +123,9 @@ class Block:
         for s in self.statements:
             local = s.pretty(rules)
             if len(local) > 0:
-                if s in self.funcs:
-                    buf += rules.indent + local
-                else:
-                    buf += rules.indent + local + ';\n'
+                buf += rules.indent + local + rules.endmark(s)
         if not self.top:
-            buf = indent + '{\n' + buf + indent + '}\n'
+            buf = '{\n' + buf + indent + '}\n'
             rules.popindent()
         return buf
 
@@ -216,7 +219,7 @@ class Call:
         self.args = []
 
     def pretty(self, rules):
-        return self.callee.pretty(rules) + '(' + ','.join( map(lambda x: x.pretty(rules), self.args) ) + ')'
+        return self.callee.pretty(rules) + '(' + ' ,'.join( map(lambda x: x.pretty(rules), self.args) ) + ')'
 
     @classmethod
     def load(cls, astnode):

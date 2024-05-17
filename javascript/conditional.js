@@ -7,4 +7,6 @@ function toType( obj ) {
 	return typeof obj === "object" || typeof obj === "function" ?
 		class2type[ toString.call( obj ) ] || "object" :
 		typeof obj;
+
+  if (obj==null) return 5;
 }
