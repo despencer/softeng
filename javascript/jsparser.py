@@ -8,7 +8,7 @@ class Rules:
     def __init__(self):
         self.indent = ''
         self.baseindent = 4
-        self.reqsm = [ Operation, Modifier, ConditionalExpression, Call, Return, Expression, VariableDeclaration ]
+        self.reqsm = [ Operation, Modifier, ConditionalExpression, Call, Action, Expression, VariableDeclaration ]
 
     def newindent(self):
         return ''.ljust(self.baseindent)
@@ -131,17 +131,17 @@ class Block:
 
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
-               'BlockStatement':'body' }
+               'BlockStatement':'body', 'ThrowStatement':'argument' }
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression(),
-              'ReturnStatement': lambda x: Return(Expression.load(x['argument'])), 'IfStatement':lambda x: Block.loadconditional(x),
-              'BlockStatement': lambda x: Block.load(x['body']) }
+              'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
+              'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw) }
 
     @classmethod
     def load(cls, astnode):
         block = Block()
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
-                    'ReturnStatement':'exprs',  'IfStatement':'exprs', 'BlockStatement': 'exprs'}
+                    'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs'}
         for x in astnode:
             xtype = x['type']
             stmt = cls.loadstatement(x)
@@ -229,12 +229,16 @@ class Call:
             call.args.append( Expression.load(a) )
         return call
 
-class Return:
-    def __init__(self, expression):
+class Action:
+    Return = 1
+    Throw = 2
+
+    def __init__(self, expression, kind):
         self.expression = expression
+        self.kind = kind
 
     def pretty(self, rules):
-        return 'return ' + self.expression.pretty(rules)
+        return {Action.Return:'return',Action.Throw:'throw'}[self.kind] + ' ' + self.expression.pretty(rules)
 
 
 class Expression:
