@@ -10,5 +10,13 @@ function toType( obj ) {
 
   if (obj==null) return 5;
 
+  if( obj != 'a')
+       return 'z'
+  else
+     {
+      a = a+1;
+      if(b) { f(a); z=v; }
+     }
+
   throw new Error('Abcd');
 }

@@ -6,18 +6,16 @@ from pyjsparser import parse
 
 class Rules:
     def __init__(self):
-        self.indent = ''
-        self.baseindent = 4
-        self.reqsm = [ Operation, Modifier, ConditionalExpression, Call, Action, Expression, VariableDeclaration ]
+        self.indent = '    '
+        self.reqsm = [ Operation, Operand, Modifier, ConditionalExpression, Call, Action, VariableDeclaration ]
 
-    def newindent(self):
-        return ''.ljust(self.baseindent)
-
-    def pushindent(self):
-        self.indent += self.newindent()
-
-    def popindent(self):
-        self.indent = self.indent[:-self.baseindent]
+    def applyindent(self, code):
+        lines = code.split('\n')
+        if lines[-1] == '':
+            lines = [ *(map(lambda x: self.indent+x, lines[:-1])) , lines[-1] ]
+        else:
+            lines = list(map(lambda x: self.indent+x, lines))
+        return '\n'.join(lines)
 
     def endmark(self, stmt):
         if stmt.__class__ in self.reqsm:
@@ -101,10 +99,10 @@ class ConditionalStatement:
 
     def pretty(self, rules):
         buf = 'if ( ' + self.test.pretty(rules) + ' )\n'
-        buf += rules.newindent() + self.consequent.pretty(rules) + rules.endmark(self.consequent)
+        buf += rules.applyindent( self.consequent.pretty(rules) + rules.endmark(self.consequent) )
         if self.alternate != None:
             buf += 'else\n'
-            buf += rules.newindent() + self.alternate.pretty(rules) + rules.endmark(self.alternate)
+            buf += rules.applyindent( self.alternate.pretty(rules) + rules.endmark(self.alternate) )
         return buf
 
 class Block:
@@ -117,16 +115,10 @@ class Block:
 
     def pretty(self, rules):
         buf = ''
-        indent = rules.indent
-        if not self.top:
-            rules.pushindent()
         for s in self.statements:
-            local = s.pretty(rules)
-            if len(local) > 0:
-                buf += rules.indent + local + rules.endmark(s)
+            buf += s.pretty(rules) + rules.endmark(s)
         if not self.top:
-            buf = '{\n' + buf + indent + '}\n'
-            rules.popindent()
+            buf = '{\n' + rules.applyindent(buf) + '}\n'
         return buf
 
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
