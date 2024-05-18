@@ -36,6 +36,7 @@ class Operand:
     literal = 1
     identifier = 2
     parameter = 3
+    this = 4
 
     def __init__(self, kind, value, raw):
         self.kind = kind
@@ -263,6 +264,9 @@ class Expression:
         elif astnode['type'] == 'Identifier':
             checknode(astnode, 'name')
             return Operand(Operand.identifier, astnode['name'], astnode['name'])
+        elif astnode['type'] == 'ThisExpression':
+            checknode(astnode, [])
+            return Operand(Operand.this, 'this', 'this')
         elif astnode['type'] in cls.binary:
             checknode(astnode, ['operator','left','right'])
             return Operation( astnode['operator'], Expression.load(astnode['left']), Expression.load(astnode['right']), kind=cls.binary[astnode['type']] )
