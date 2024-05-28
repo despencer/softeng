@@ -76,12 +76,16 @@ class Operation:
         return Operation.prettyoperand(self.left, rules) + ' ' + self.operator + ' ' + Operation.prettyoperand(self.right, rules)
 
 class Modifier:
-    def __init__(self, operator, argument):
+    def __init__(self, operator, argument, prefix):
         self.operator = operator
         self.argument = argument
+        self.prefix = prefix
 
     def pretty(self, rules):
-        return self.operator + ' ' + Operation.prettyoperand(self.argument, rules)
+        if self.prefix:
+            return self.operator + Operation.prettyoperand(self.argument, rules)
+        else:
+            return Operation.prettyoperand(self.argument, rules) + self.operator
 
 class ConditionalExpression:
     def __init__(self, test, consequent, alternate):
@@ -176,10 +180,10 @@ class Iterator:
         self.body = None
 
     def pretty(self, rules):
-        buf = 'for(' + ' ,'.join( map(lambda x: x.pretty(rules), self.init)) + ';'
+        buf = 'for(' + ' ,'.join( map(lambda x: x.pretty(rules), self.init)) + '; '
         if self.test != None:
             buf += self.test.pretty(rules)
-        buf += ' ;'
+        buf += '; '
         if self.update != None:
             buf += self.update.pretty(rules)
         buf += ')\n'
@@ -310,11 +314,9 @@ class Expression:
         elif astnode['type'] == 'ConditionalExpression':
             checknode(astnode, ['test', 'consequent', 'alternate'])
             return ConditionalExpression( Expression.load(astnode['test']), Expression.load(astnode['consequent']), Expression.load(astnode['alternate']) )
-        elif astnode['type'] == 'UnaryExpression':
+        elif astnode['type'] == 'UnaryExpression' or astnode['type'] == 'UpdateExpression':
             checknode(astnode, ['operator', 'argument', 'prefix'])
-            if astnode['prefix'] != True:
-                raise Exception('Prefix is not True for UnaryExpression')
-            return Modifier( astnode['operator'], Expression.load(astnode['argument']) )
+            return Modifier( astnode['operator'], Expression.load(astnode['argument']), astnode['prefix'] )
         else:
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
