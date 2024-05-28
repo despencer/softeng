@@ -251,24 +251,38 @@ class Call:
     call = 1
     new = 2
 
-    def __init__(self, callee, kind):
+    def __init__(self, callee, kind, args):
         self.kind = kind
         self.callee = callee
-        self.args = []
+        self.args = args
 
     def pretty(self, rules):
         buf = ''
         if self.kind == Call.new:
             buf += 'new '
-        return buf + self.callee.pretty(rules) + '(' + ' ,'.join( map(lambda x: x.pretty(rules), self.args) ) + ')'
+        return buf + self.callee.pretty(rules) + self.args.pretty(rules)
 
     @classmethod
     def load(cls, astnode, kind):
         checknode(astnode, ['callee','arguments'] )
-        call = Call(Expression.load(astnode['callee']), kind)
-        for a in astnode['arguments']:
-            call.args.append( Expression.load(a) )
-        return call
+        return Call(Expression.load(astnode['callee']), kind, Combinator.load(astnode['arguments'], '()') )
+
+class Combinator:
+    def __init__(self, kind):
+        self.open = kind[0]
+        self.close = kind[-1]
+        self.args = []
+
+    def pretty(self, rules):
+        return self.open + ' ,'.join( map(lambda x: x.pretty(rules), self.args) ) + self.close
+
+    @classmethod
+    def load(cls, astnode, kind):
+        combinator = Combinator(kind)
+        for a in astnode:
+            combinator.args.append( Expression.load(a) )
+        return combinator
+
 
 class Action:
     Return = 1
@@ -317,6 +331,9 @@ class Expression:
         elif astnode['type'] == 'UnaryExpression' or astnode['type'] == 'UpdateExpression':
             checknode(astnode, ['operator', 'argument', 'prefix'])
             return Modifier( astnode['operator'], Expression.load(astnode['argument']), astnode['prefix'] )
+        elif astnode['type'] == 'ArrayExpression':
+            checknode(astnode, 'elements')
+            return Combinator.load(astnode['elements'], '[]')
         else:
             raise Exception('Unknown expression type ' + astnode['type'])
         return None

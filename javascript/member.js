@@ -16,3 +16,8 @@ function b( elems, callback, matches)
   for(var k=0; k && y; f(k)) ++a;
   for( ret(6,7); ;) z=y;
 }
+function c()
+{
+ var b=[1,2,3];
+ var a=[];
+}
