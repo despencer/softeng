@@ -124,17 +124,18 @@ class Block:
 
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
-               'BlockStatement':'body', 'ThrowStatement':'argument' }
+               'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None }
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression(),
               'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
-              'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw) }
+              'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
+              'ForStatement':lambda x: Iterator.load(x) }
 
     @classmethod
     def load(cls, astnode):
         block = Block()
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
-                    'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs'}
+                    'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs', 'ForStatement':'exprs'}
         for x in astnode:
             xtype = x['type']
             stmt = cls.loadstatement(x)
@@ -145,14 +146,15 @@ class Block:
         return block
 
     @classmethod
-    def loadstatement(cls, x):
-        xtype = x['type']
+    def loadstatement(cls, astnode):
+        xtype = astnode['type']
         if xtype in cls.checks:
             if cls.checks[xtype] != None:
-                checknode(x, cls.checks[xtype])
+                checknode(astnode, cls.checks[xtype])
         else:
-            raise Exception('Unknown block statement ' + x['type'])
-        return cls.loads[xtype](x)
+            print(astnode)
+            raise Exception('Unknown block statement ' + xtype)
+        return cls.loads[xtype](astnode)
 
     @classmethod
     def loadvardecl(cls, x):
@@ -165,6 +167,41 @@ class Block:
     def loadconditional(cls, x):
         return ConditionalStatement( Expression.load(x['test']), Block.loadstatement(x['consequent']),
                                      None if x['alternate'] == None else Block.loadstatement(x['alternate']) )
+
+class Iterator:
+    def __init__(self):
+        self.init = []
+        self.test = None
+        self.update = None
+        self.body = None
+
+    def pretty(self, rules):
+        buf = 'for(' + ' ,'.join( map(lambda x: x.pretty(rules), self.init)) + ';'
+        if self.test != None:
+            buf += self.test.pretty(rules)
+        buf += ' ;'
+        if self.update != None:
+            buf += self.update.pretty(rules)
+        buf += ')\n'
+        buf += rules.applyindent( self.body.pretty(rules) + rules.endmark(self.body) )
+        return buf
+
+    @classmethod
+    def load(cls, astnode):
+        checknode(astnode, ['init','test','update','body'])
+        iterator = cls()
+        if astnode['init'] != None:
+            if astnode['init']['type'] == 'VariableDeclaration':
+                checknode( astnode['init'], ['declarations', 'kind'] )
+                iterator.init.extend( Block.loadvardecl(astnode['init']) )
+            else:
+                iterator.init.append( Expression.load(astnode['init']) )
+        if astnode['test'] != None:
+            iterator.test = Expression.load(astnode['test'])
+        if astnode['update'] != None:
+            iterator.update = Expression.load(astnode['update'])
+        iterator.body = Block.loadstatement(astnode['body'])
+        return iterator
 
 class Function:
     def __init__(self, name, decl, body):
