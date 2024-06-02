@@ -130,7 +130,7 @@ class Block:
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
                'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None }
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
-              'FunctionDeclaration': lambda x: Function.load(x, True), 'EmptyStatement': lambda x: Expression(),
+              'FunctionDeclaration': lambda x: Function.load(x, Function.declaration), 'EmptyStatement': lambda x: Expression(),
               'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
               'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
               'ForStatement':lambda x: Iterator.load(x) }
@@ -208,19 +208,26 @@ class Iterator:
         return iterator
 
 class Function:
-    def __init__(self, name, decl, body):
+    declaration = 1
+    inline = 2
+    objprop = 3
+
+    def __init__(self, name, kind, body):
         self.name = name
-        self.decl = decl
+        self.kind = kind
         self.params = []
         self.body = body
 
     def pretty(self, rules):
-        buf = 'function'
+        if self.kind != Function.objprop:
+            buf = 'function'
+        else:
+            buf = ''
         if self.name != None:
             buf += ' ' + self.name
         buf += '(' + ','.join( map(lambda x: x.pretty(rules), self.params) ) + ')\n'
         buf += self.body.pretty(rules)
-        if not self.decl:
+        if self.kind == Function.inline:
             buf = '(' + buf + ')'
         buf += '\n'
         return buf
@@ -267,6 +274,68 @@ class Call:
         checknode(astnode, ['callee','arguments'] )
         return Call(Expression.load(astnode['callee']), kind, Combinator.load(astnode['arguments'], '()') )
 
+class Property:
+    init = 1
+    method = 2
+    setter = 3
+    getter = 4
+
+    def __init__(self, kind, key, value):
+        self.kind = kind
+        self.key = key
+        self.value = value
+        if self.kind in [Property.method, Property.setter, Property.getter] and isinstance(self.value, Function):
+            self.value.kind = Function.objprop
+            self.value.name = ''
+
+    def pretty(self, rules):
+        return { Property.init : lambda: self.key + ' : ' + self.value.pretty(rules) ,
+                 Property.method: lambda: self.key + ' ' + self.value.pretty(rules) ,
+                 Property.setter: lambda: 'set ' + self.key + ' ' + self.value.pretty(rules) ,
+                 Property.getter: lambda: 'get ' + self.key + ' ' + self.value.pretty(rules) }[self.kind]()
+
+    @classmethod
+    def getkind(cls, astnode):
+        if astnode['kind'] == 'init':
+            if astnode['method']:
+                return Property.method
+            else:
+                return Property.init
+        elif astnode['kind'] == 'set':
+            return Property.setter
+        elif astnode['kind'] == 'get':
+            return Property.getter
+        else:
+            raise Exception('Unknown property kind ' + astnode['kind'])
+
+class Object:
+    def __init__(self):
+        self.properties = []
+
+    def pretty(self, rules):
+        return '{' + '\n,'.join( map(lambda x: x.pretty(rules), self.properties) ) + '}'
+
+    def pretty(self, rules):
+        buf = ''
+        for s in self.properties:
+            buf += s.pretty(rules) + ',\n'
+        buf = '{\n' + rules.applyindent(buf) + '}\n'
+        return buf
+
+    @classmethod
+    def load(cls, astnode):
+        checknode(astnode, 'properties')
+        obj = Object()
+        for p in astnode['properties']:
+            checknode(p, ['key', 'computed', 'value', 'kind', 'method', 'shorthand'], nodetype = 'Property')
+            checknode(p['key'], 'name', nodetype = 'Identifier')
+            if p['computed']:
+                raise Exception('Computed properties are not supported')
+            if p['shorthand']:
+                raise Exception('Shorthands are not supported')
+            obj.properties.append( Property(Property.getkind(p), p['key']['name'], Expression.load(p['value'])) )
+        return obj
+
 class Combinator:
     def __init__(self, kind):
         self.open = kind[0]
@@ -311,7 +380,7 @@ class Expression:
         elif astnode['type'] in cls.call:
             return Call.load(astnode, cls.call[astnode['type']])
         elif astnode['type'] == 'FunctionExpression':
-            return Function.load(astnode, False)
+            return Function.load(astnode, Function.inline)
         elif astnode['type'] == 'MemberExpression':
             checknode(astnode, ['computed', 'object', 'property'])
             kind = Operation.bracketmember if astnode['computed'] else Operation.dotmember
@@ -334,6 +403,8 @@ class Expression:
         elif astnode['type'] == 'ArrayExpression':
             checknode(astnode, 'elements')
             return Combinator.load(astnode['elements'], '[]')
+        elif astnode['type'] == 'ObjectExpression':
+            return Object.load(astnode)
         else:
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
