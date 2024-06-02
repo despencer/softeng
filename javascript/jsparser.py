@@ -128,18 +128,19 @@ class Block:
 
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
-               'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None }
+               'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None,  'ForInStatement':None}
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, Function.declaration), 'EmptyStatement': lambda x: Expression(),
               'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
               'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
-              'ForStatement':lambda x: Iterator.load(x) }
+              'ForStatement':lambda x: Loop.load(x), 'ForInStatement':lambda x: Iterator.load(x) }
 
     @classmethod
     def load(cls, astnode):
         block = Block()
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
-                    'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs', 'ForStatement':'exprs'}
+                    'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs', 'ForStatement':'exprs',
+                    'ForInStatement':'exprs'}
         for x in astnode:
             xtype = x['type']
             stmt = cls.loadstatement(x)
@@ -173,6 +174,24 @@ class Block:
                                      None if x['alternate'] == None else Block.loadstatement(x['alternate']) )
 
 class Iterator:
+    def __init__(self, itervar, rangedecl, body):
+        self.itervar = itervar
+        self.rangedecl = rangedecl
+        self.body = body
+
+    def pretty(self, rules):
+        buf = 'for(' + self.itervar.pretty(rules) + ' in ' + self.rangedecl.pretty(rules) + ')\n'
+        buf += rules.applyindent( self.body.pretty(rules) + rules.endmark(self.body) )
+        return buf
+
+    @classmethod
+    def load(self, astnode):
+        checknode(astnode, ['left','right','each','body'])
+        if astnode['each']:
+            raise Exception("'each' attribute should be false in for-in statement")
+        return Iterator( Expression.load(astnode['left']), Expression.load(astnode['right']), Block.loadstatement(astnode['body']) )
+
+class Loop:
     def __init__(self):
         self.init = []
         self.test = None
@@ -193,19 +212,19 @@ class Iterator:
     @classmethod
     def load(cls, astnode):
         checknode(astnode, ['init','test','update','body'])
-        iterator = cls()
+        loop = cls()
         if astnode['init'] != None:
             if astnode['init']['type'] == 'VariableDeclaration':
                 checknode( astnode['init'], ['declarations', 'kind'] )
-                iterator.init.extend( Block.loadvardecl(astnode['init']) )
+                loop.init.extend( Block.loadvardecl(astnode['init']) )
             else:
-                iterator.init.append( Expression.load(astnode['init']) )
+                loop.init.append( Expression.load(astnode['init']) )
         if astnode['test'] != None:
-            iterator.test = Expression.load(astnode['test'])
+            loop.test = Expression.load(astnode['test'])
         if astnode['update'] != None:
-            iterator.update = Expression.load(astnode['update'])
-        iterator.body = Block.loadstatement(astnode['body'])
-        return iterator
+            loop.update = Expression.load(astnode['update'])
+        loop.body = Block.loadstatement(astnode['body'])
+        return loop
 
 class Function:
     declaration = 1
