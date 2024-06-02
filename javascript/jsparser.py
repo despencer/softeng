@@ -7,7 +7,7 @@ from pyjsparser import parse
 class Rules:
     def __init__(self):
         self.indent = '    '
-        self.reqsm = [ Operation, Operand, Modifier, ConditionalExpression, Call, Action, VariableDeclaration ]
+        self.reqsm = [ Operation, Operand, Modifier, ConditionalExpression, Call, Action, VariableDeclaration, Object ]
 
     def applyindent(self, code):
         lines = code.split('\n')
@@ -229,7 +229,8 @@ class Function:
         buf += self.body.pretty(rules)
         if self.kind == Function.inline:
             buf = '(' + buf + ')'
-        buf += '\n'
+        if self.kind != Function.objprop:
+            buf += '\n'
         return buf
 
     @classmethod
@@ -276,9 +277,10 @@ class Call:
 
 class Property:
     init = 1
-    method = 2
-    setter = 3
-    getter = 4
+    shorthand = 2
+    method = 3
+    setter = 4
+    getter = 5
 
     def __init__(self, kind, key, value):
         self.kind = kind
@@ -290,6 +292,7 @@ class Property:
 
     def pretty(self, rules):
         return { Property.init : lambda: self.key + ' : ' + self.value.pretty(rules) ,
+                 Property.shorthand : lambda: self.key ,
                  Property.method: lambda: self.key + ' ' + self.value.pretty(rules) ,
                  Property.setter: lambda: 'set ' + self.key + ' ' + self.value.pretty(rules) ,
                  Property.getter: lambda: 'get ' + self.key + ' ' + self.value.pretty(rules) }[self.kind]()
@@ -299,6 +302,8 @@ class Property:
         if astnode['kind'] == 'init':
             if astnode['method']:
                 return Property.method
+            elif astnode['shorthand']:
+                return Property.shorthand
             else:
                 return Property.init
         elif astnode['kind'] == 'set':
@@ -313,13 +318,10 @@ class Object:
         self.properties = []
 
     def pretty(self, rules):
-        return '{' + '\n,'.join( map(lambda x: x.pretty(rules), self.properties) ) + '}'
-
-    def pretty(self, rules):
         buf = ''
         for s in self.properties:
             buf += s.pretty(rules) + ',\n'
-        buf = '{\n' + rules.applyindent(buf) + '}\n'
+        buf = '{\n' + rules.applyindent(buf) + '}'
         return buf
 
     @classmethod
@@ -331,8 +333,6 @@ class Object:
             checknode(p['key'], 'name', nodetype = 'Identifier')
             if p['computed']:
                 raise Exception('Computed properties are not supported')
-            if p['shorthand']:
-                raise Exception('Shorthands are not supported')
             obj.properties.append( Property(Property.getkind(p), p['key']['name'], Expression.load(p['value'])) )
         return obj
 
@@ -428,7 +428,7 @@ class VariableDeclaration:
         vd = VariableDeclaration()
         vd.id = astnode['id']['name']
         vd.kind = kind
-        if 'init' in astnode:
+        if 'init' in astnode and astnode['init'] != None:
             vd.expression = Expression.load(astnode['init'])
         return vd
 
