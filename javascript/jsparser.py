@@ -37,6 +37,7 @@ class Operand:
     identifier = 2
     parameter = 3
     this = 4
+    regex = 5
 
     def __init__(self, kind, value, raw):
         self.kind = kind
@@ -44,6 +45,8 @@ class Operand:
         self.raw = raw
 
     def pretty(self, rules):
+        if self.kind == Operand.regex:
+            return '(' + self.raw + ')'
         return self.raw
 
 class Operation:
@@ -394,8 +397,8 @@ class Expression:
     @classmethod
     def load(cls, astnode):
         if astnode['type'] == 'Literal':
-            checknode(astnode, ['value','raw'])
-            return Operand(Operand.literal, astnode['value'], astnode['raw'])
+            checknode(astnode, ['value','raw','regex'])
+            return Operand( Operand.regex if 'regex' in astnode else Operand.literal, astnode['value'], astnode['raw'])
         elif astnode['type'] in cls.call:
             return Call.load(astnode, cls.call[astnode['type']])
         elif astnode['type'] == 'FunctionExpression':
