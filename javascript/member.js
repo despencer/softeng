@@ -16,6 +16,8 @@ function b( elems, callback, matches)
   for(var k=0; k && y; f(k)) ++a;
   for( ret(6,7); ;) z=y;
   for( e in tat.get()) x++;
+  for( z in foo)
+     break;
 }
 function c()
 {

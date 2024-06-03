@@ -131,19 +131,21 @@ class Block:
 
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
-               'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None,  'ForInStatement':None}
+               'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None,  'ForInStatement':None, 
+               'BreakStatement': 'label', 'ContinueStatement': 'label'}
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, Function.declaration), 'EmptyStatement': lambda x: Expression(),
               'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
               'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
-              'ForStatement':lambda x: Loop.load(x), 'ForInStatement':lambda x: Iterator.load(x) }
+              'ForStatement':lambda x: Loop.load(x), 'ForInStatement':lambda x: Iterator.load(x),
+              'BreakStatement': lambda x: Block.loadcontrol(x, Action.Break), 'ContinueStatement': lambda x: Block.loadcontrol(x, Action.Continue) }
 
     @classmethod
     def load(cls, astnode):
         block = Block()
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
                     'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs', 'ForStatement':'exprs',
-                    'ForInStatement':'exprs'}
+                    'ForInStatement':'exprs', 'BreakStatement':'exprs', 'ContinueStatement':'exprs'}
         for x in astnode:
             xtype = x['type']
             stmt = cls.loadstatement(x)
@@ -175,6 +177,12 @@ class Block:
     def loadconditional(cls, x):
         return ConditionalStatement( Expression.load(x['test']), Block.loadstatement(x['consequent']),
                                      None if x['alternate'] == None else Block.loadstatement(x['alternate']) )
+
+    @classmethod
+    def loadcontrol(cls, astnode, kind):
+        if astnode['label'] != None:
+            raise Exception(astnode['type'] + ' with labels are unsupported')
+        return Action(None, kind)
 
 class Iterator:
     def __init__(self, itervar, rangedecl, body):
@@ -378,13 +386,18 @@ class Combinator:
 class Action:
     Return = 1
     Throw = 2
+    Break = 3
+    Continue = 4
 
     def __init__(self, expression, kind):
         self.expression = expression
         self.kind = kind
 
     def pretty(self, rules):
-        return {Action.Return:'return',Action.Throw:'throw'}[self.kind] + ' ' + self.expression.pretty(rules)
+        buf = { Action.Return:'return', Action.Throw:'throw', Action.Break:'break', Action.Continue:'continue' }[self.kind]
+        if self.expression != None:
+            buf += ' ' + self.expression.pretty(rules)
+        return buf
 
 
 class Expression:
