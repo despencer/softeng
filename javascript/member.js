@@ -18,6 +18,8 @@ function b( elems, callback, matches)
   for( e in tat.get()) x++;
   for( z in foo)
      break;
+  while ( ( node = elem[ i++ ] ) )
+     { ret += jQuery.text( node ); }
 }
 function c()
 {

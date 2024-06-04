@@ -132,20 +132,21 @@ class Block:
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
                'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None,  'ForInStatement':None, 
-               'BreakStatement': 'label', 'ContinueStatement': 'label'}
+               'BreakStatement': 'label', 'ContinueStatement': 'label', 'WhileStatement':None}
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, Function.declaration), 'EmptyStatement': lambda x: Expression(),
               'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
               'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
-              'ForStatement':lambda x: Loop.load(x), 'ForInStatement':lambda x: Iterator.load(x),
-              'BreakStatement': lambda x: Block.loadcontrol(x, Action.Break), 'ContinueStatement': lambda x: Block.loadcontrol(x, Action.Continue) }
+              'ForStatement':lambda x: Loop.loadfor(x), 'ForInStatement':lambda x: Iterator.load(x),
+              'BreakStatement': lambda x: Block.loadcontrol(x, Action.Break), 'ContinueStatement': lambda x: Block.loadcontrol(x, Action.Continue),
+              'WhileStatement':lambda x: Loop.loadwhile(x) }
 
     @classmethod
     def load(cls, astnode):
         block = Block()
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
                     'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs', 'ForStatement':'exprs',
-                    'ForInStatement':'exprs', 'BreakStatement':'exprs', 'ContinueStatement':'exprs'}
+                    'ForInStatement':'exprs', 'BreakStatement':'exprs', 'ContinueStatement':'exprs', 'WhileStatement':'exprs'}
         for x in astnode:
             xtype = x['type']
             stmt = cls.loadstatement(x)
@@ -203,27 +204,35 @@ class Iterator:
         return Iterator( Expression.load(astnode['left']), Expression.load(astnode['right']), Block.loadstatement(astnode['body']) )
 
 class Loop:
-    def __init__(self):
+    For = 1
+    While = 2
+
+    def __init__(self, kind):
+        self.kind = kind
         self.init = []
         self.test = None
         self.update = None
         self.body = None
 
     def pretty(self, rules):
-        buf = 'for(' + ' ,'.join( map(lambda x: x.pretty(rules), self.init)) + '; '
+        if self.kind == Loop.For:
+            buf = 'for(' + ' ,'.join( map(lambda x: x.pretty(rules), self.init)) + '; '
+        else:
+            buf = 'while( ';
         if self.test != None:
             buf += self.test.pretty(rules)
-        buf += '; '
-        if self.update != None:
-            buf += self.update.pretty(rules)
+        if self.kind == Loop.For:
+            buf += '; '
+            if self.update != None:
+                buf += self.update.pretty(rules)
         buf += ')\n'
         buf += rules.applyindent( self.body.pretty(rules) + rules.endmark(self.body) )
         return buf
 
     @classmethod
-    def load(cls, astnode):
+    def loadfor(cls, astnode):
         checknode(astnode, ['init','test','update','body'])
-        loop = cls()
+        loop = cls(Loop.For)
         if astnode['init'] != None:
             if astnode['init']['type'] == 'VariableDeclaration':
                 checknode( astnode['init'], ['declarations', 'kind'] )
@@ -234,6 +243,15 @@ class Loop:
             loop.test = Expression.load(astnode['test'])
         if astnode['update'] != None:
             loop.update = Expression.load(astnode['update'])
+        loop.body = Block.loadstatement(astnode['body'])
+        return loop
+
+    @classmethod
+    def loadwhile(cls, astnode):
+        checknode(astnode, ['test','body'])
+        loop = cls(Loop.While)
+        if astnode['test'] != None:
+            loop.test = Expression.load(astnode['test'])
         loop.body = Block.loadstatement(astnode['body'])
         return loop
 
