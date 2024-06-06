@@ -113,6 +113,45 @@ class ConditionalStatement:
             buf += rules.applyindent( self.alternate.pretty(rules) + rules.endmark(self.alternate) )
         return buf
 
+class Handler:
+    def __init__(self):
+        self.block = None
+        self.param = None
+        self.catcher = None
+        self.finalizer = None
+
+    def pretty(self, rules):
+        buf = 'try\n' + rules.applyindent( self.block.pretty(rules) + rules.endmark(self.block) )
+        if self.catcher != None:
+            buf += 'catch ( ' + self.param + ' )\n' + rules.applyindent( self.catcher.pretty(rules) + rules.endmark(self.catcher) )
+        if self.finalizer != None:
+            buf += 'finally \n' + rules.applyindent( self.finalizer.pretty(rules) + rules.endmark(self.finalizer) )
+        return buf
+
+    @classmethod
+    def load(cls, astnode):
+        checknode(astnode, ['block', 'handler', 'guardedHandlers', 'handlers', 'finalizer'])
+        checknode(astnode['block'], 'body', nodetype = 'BlockStatement')
+        if not (isinstance(astnode['guardedHandlers'], list) and len(astnode['guardedHandlers']) == 0):
+            raise Exception ('Bad guardedHandlers in try-catch')
+        handler = cls()
+        handler.block = Block.load(astnode['block']['body'])
+        if astnode['handler'] != None:
+            if len(astnode['handlers']) != 1:
+                raise Exception('Handlers array is of unusual size in try-catch')
+            checknode(astnode['handler'], ['param','body'], nodetype = 'CatchClause')
+            checknode(astnode['handler']['param'], 'name', nodetype = 'Identifier')
+            checknode(astnode['handler']['body'], 'body', nodetype = 'BlockStatement')
+            handler.param = astnode['handler']['param']['name']
+            handler.catcher = Block.load( astnode['handler']['body']['body'] )
+        else:
+            if len(astnode['handlers']) > 0:
+                raise Exception('Handlers array is not empty in try-catch')
+        if astnode['finalizer'] != None:
+            checknode(astnode['finalizer'], 'body', nodetype = 'BlockStatement')
+            handler.finalizer = Block.load( astnode['finalizer']['body'] )
+        return handler
+
 class Block:
     def __init__(self):
         self.vardecl = []
@@ -132,21 +171,21 @@ class Block:
     checks = { 'VariableDeclaration':['declarations', 'kind'], 'ExpressionStatement':'expression', 'FunctionDeclaration':None,
                'EmptyStatement':[], 'ReturnStatement':'argument', 'IfStatement':['test','consequent','alternate'],
                'BlockStatement':'body', 'ThrowStatement':'argument', 'ForStatement':None,  'ForInStatement':None, 
-               'BreakStatement': 'label', 'ContinueStatement': 'label', 'WhileStatement':None}
+               'BreakStatement': 'label', 'ContinueStatement': 'label', 'WhileStatement':None, 'TryStatement':None}
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, Function.declaration), 'EmptyStatement': lambda x: Expression(),
               'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
               'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
               'ForStatement':lambda x: Loop.loadfor(x), 'ForInStatement':lambda x: Iterator.load(x),
               'BreakStatement': lambda x: Block.loadcontrol(x, Action.Break), 'ContinueStatement': lambda x: Block.loadcontrol(x, Action.Continue),
-              'WhileStatement':lambda x: Loop.loadwhile(x) }
+              'WhileStatement':lambda x: Loop.loadwhile(x), 'TryStatement': Handler.load }
 
     @classmethod
     def load(cls, astnode):
         block = Block()
         dispatch = { 'VariableDeclaration': 'vardecl', 'ExpressionStatement':'exprs', 'FunctionDeclaration':'funcs', 'EmptyStatement':'exprs',
                     'ReturnStatement':'exprs',  'ThrowStatement':'exprs', 'IfStatement':'exprs', 'BlockStatement': 'exprs', 'ForStatement':'exprs',
-                    'ForInStatement':'exprs', 'BreakStatement':'exprs', 'ContinueStatement':'exprs', 'WhileStatement':'exprs'}
+                    'ForInStatement':'exprs', 'BreakStatement':'exprs', 'ContinueStatement':'exprs', 'WhileStatement':'exprs', 'TryStatement':'exprs'}
         for x in astnode:
             xtype = x['type']
             stmt = cls.loadstatement(x)
@@ -399,7 +438,6 @@ class Combinator:
         for a in astnode:
             combinator.args.append( Expression.load(a) )
         return combinator
-
 
 class Action:
     Return = 1
