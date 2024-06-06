@@ -417,10 +417,17 @@ class Object:
         obj = Object()
         for p in astnode['properties']:
             checknode(p, ['key', 'computed', 'value', 'kind', 'method', 'shorthand'], nodetype = 'Property')
-            checknode(p['key'], 'name', nodetype = 'Identifier')
+            if p['key']['type'] == 'Literal':
+                checknode(p['key'], ['value','raw'])
+                key = p['key']['raw']
+            elif p['key']['type'] == 'Identifier':
+                checknode(p['key'], 'name')
+                key = p['key']['name']
+            else:
+                raise Exception ('Wrong type of object property key: ' + p['key']['type'])
             if p['computed']:
                 raise Exception('Computed properties are not supported')
-            obj.properties.append( Property(Property.getkind(p), p['key']['name'], Expression.load(p['value'])) )
+            obj.properties.append( Property(Property.getkind(p), key, Expression.load(p['value'])) )
         return obj
 
 class Combinator:

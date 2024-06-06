@@ -7,3 +7,7 @@ d: { set(x) { this.d = x; } },
 z,
 };
 var f={};
+var q = {
+">": "pNode",
+" ": "paNode"
+}
