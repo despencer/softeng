@@ -8,7 +8,7 @@ function toType( obj ) {
 		class2type[ toString.call( obj ) ] || "object" :
 		typeof obj;
 
-  if (obj==null) return 5;
+  if (obj==null) return;
 
   if( obj != 'a')
        return 'z'

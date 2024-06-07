@@ -175,7 +175,8 @@ class Block:
                'TryStatement':None}
     loads = { 'VariableDeclaration': lambda x: Block.loadvardecl(x) , 'ExpressionStatement': lambda x: Expression.load(x['expression']),
               'FunctionDeclaration': lambda x: Function.load(x, Function.declaration), 'EmptyStatement': lambda x: Expression(),
-              'ReturnStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Return), 'IfStatement':lambda x: Block.loadconditional(x),
+              'ReturnStatement': lambda x: Action(Expression.load(x['argument']) if x['argument']!=None else None, kind=Action.Return),
+              'IfStatement':lambda x: Block.loadconditional(x),
               'BlockStatement': lambda x: Block.load(x['body']), 'ThrowStatement': lambda x: Action(Expression.load(x['argument']), kind=Action.Throw),
               'ForStatement':lambda x: Loop.loadfor(x), 'ForInStatement':lambda x: Iterator.load(x),
               'BreakStatement': lambda x: Block.loadcontrol(x, Action.Break), 'ContinueStatement': lambda x: Block.loadcontrol(x, Action.Continue),
