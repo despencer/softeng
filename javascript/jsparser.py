@@ -85,10 +85,14 @@ class Modifier:
         self.prefix = prefix
 
     def pretty(self, rules):
-        if self.prefix:
-            return self.operator + Operation.prettyoperand(self.argument, rules)
+        if len(self.operator) > 2:
+            delim = ' '
         else:
-            return Operation.prettyoperand(self.argument, rules) + self.operator
+            delim = ''
+        if self.prefix:
+            return self.operator + delim + Operation.prettyoperand(self.argument, rules)
+        else:
+            return Operation.prettyoperand(self.argument, rules) + delim + self.operator
 
 class ConditionalExpression:
     def __init__(self, test, consequent, alternate):
