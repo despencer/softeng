@@ -13,7 +13,7 @@ function b( elems, callback, matches)
        if ( callbackInverse !== callbackExpect )
           matches.push( elems[ i ] );
        }
-  for(var k=0; k && y; f(k)) ++a;
+  for(var k=0; k && y; f(k), g(s)) ++a;
   for( ret(6,7); ;) z=y;
   for( e in tat.get()) x++;
   for( z in foo)

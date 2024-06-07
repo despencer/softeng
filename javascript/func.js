@@ -8,4 +8,5 @@ function safeActiveElement()
     finally { a++; }
  try { something(); } finally { none(); }
  try { something(); } catch (e) { }
+ a, b, c;
 }

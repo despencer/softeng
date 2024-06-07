@@ -7,7 +7,7 @@ from pyjsparser import parse
 class Rules:
     def __init__(self):
         self.indent = '    '
-        self.reqsm = [ Operation, Operand, Modifier, ConditionalExpression, Call, Action, VariableDeclaration, Object ]
+        self.reqsm = [ Operation, Operand, Modifier, ConditionalExpression, Call, Action, VariableDeclaration, Object, Combinator ]
 
     def applyindent(self, code):
         lines = code.split('\n')
@@ -442,8 +442,12 @@ class Object:
 
 class Combinator:
     def __init__(self, kind):
-        self.open = kind[0]
-        self.close = kind[-1]
+        if kind != None:
+            self.open = kind[0]
+            self.close = kind[-1]
+        else:
+            self.open = ''
+            self.close = ''
         self.args = []
 
     def pretty(self, rules):
@@ -511,9 +515,13 @@ class Expression:
         elif astnode['type'] == 'ArrayExpression':
             checknode(astnode, 'elements')
             return Combinator.load(astnode['elements'], '[]')
+        elif astnode['type'] == 'SequenceExpression':
+            checknode(astnode, 'expressions')
+            return Combinator.load(astnode['expressions'], None)
         elif astnode['type'] == 'ObjectExpression':
             return Object.load(astnode)
         else:
+            print(astnode)
             raise Exception('Unknown expression type ' + astnode['type'])
         return None
 
