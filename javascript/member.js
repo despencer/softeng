@@ -20,6 +20,7 @@ function b( elems, callback, matches)
      break;
   while ( ( node = elem[ i++ ] ) )
      { ret += jQuery.text( node ); }
+  do { something(); } while (a);
 }
 function c()
 {
