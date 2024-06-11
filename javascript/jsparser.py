@@ -22,6 +22,11 @@ class Rules:
             return ';\n'
         return ''
 
+    def objnameembrace(self, callee):
+        if callee.__class__ in [ Operand ]:
+            return False
+        return True
+
 def checknode(node, keys, nodetype = None):
     if nodetype != None and node['type'] != nodetype:
         raise Exception('Mismatched node type ' + node['type'] + ' (should be ' + nodetype + ')')
@@ -73,9 +78,15 @@ class Operation:
         if self.kind == Operation.assignment:
             return self.left.pretty(rules) + ' ' + self.operator + ' ' + self.right.pretty(rules)
         elif self.kind == Operation.dotmember:
-            return self.left.pretty(rules) + '.' + self.right.pretty(rules)
+            if rules.objnameembrace(self.left):
+                return '(' + self.left.pretty(rules) + ').' + self.right.pretty(rules)
+            else:
+                return self.left.pretty(rules) + '.' + self.right.pretty(rules)
         elif self.kind == Operation.bracketmember:
-            return self.left.pretty(rules) + '[' + self.right.pretty(rules) + ']'
+            if rules.objnameembrace(self.left):
+                return '(' + self.left.pretty(rules) + ')[' + self.right.pretty(rules) + ']'
+            else:
+                return self.left.pretty(rules) + '[' + self.right.pretty(rules) + ']'
         return Operation.prettyoperand(self.left, rules) + ' ' + self.operator + ' ' + Operation.prettyoperand(self.right, rules)
 
 class Modifier:
@@ -369,7 +380,8 @@ class Call:
         buf = ''
         if self.kind == Call.new:
             buf += 'new '
-        return buf + self.callee.pretty(rules) + self.args.pretty(rules)
+        buf += self.callee.pretty(rules)
+        return buf + self.args.pretty(rules)
 
     @classmethod
     def load(cls, astnode, kind):
